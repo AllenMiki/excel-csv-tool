@@ -8,10 +8,9 @@ Excel G列 JSON数据转CSV工具
 import streamlit as st
 import pandas as pd
 import json
-import os
-from pathlib import Path
+import base64
 import openpyxl
-import io
+from pathlib import Path
 
 # 页面配置
 st.set_page_config(
@@ -87,6 +86,22 @@ def convert_excel_to_csv(excel_path):
     return result_data_list, row_count, error_count
 
 
+def get_csv_download_link(csv_content, filename="output.csv"):
+    """
+    生成带BOM的CSV下载链接，使用base64编码确保中文正确
+    """
+    # UTF-8-BOM: \ufeff 是BOM标记，让Excel正确识别中文编码
+    bom = '\ufeff'
+    csv_with_bom = bom + csv_content
+    
+    # 使用base64编码
+    b64 = base64.b64encode(csv_with_bom.encode('utf-8')).decode()
+    
+    href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}" style="display:inline-block;padding:0.5rem 1rem;background-color:#ff4b4b;color:white;text-decoration:none;border-radius:0.3rem;font-weight:500;text-align:center;width:100%;">⬇️ 下载 CSV 文件</a>'
+    
+    return href
+
+
 # 文件上传
 uploaded_file = st.file_uploader(
     "📁 选择 Excel 文件 (.xlsx 或 .xls)",
@@ -108,8 +123,8 @@ if uploaded_file:
         with st.spinner("正在转换..."):
             try:
                 # 保存上传的文件
-                upload_dir = Path("temp_uploads")
-                upload_dir.mkdir(exist_ok=True)
+                upload_dir = Path("/tmp/temp_uploads")
+                upload_dir.mkdir(parents=True, exist_ok=True)
                 temp_path = upload_dir / uploaded_file.name
                 
                 with open(temp_path, "wb") as f:
@@ -129,11 +144,8 @@ if uploaded_file:
                     new_column_order = [col for col in new_column_order if col in df.columns]
                     df = df[new_column_order]
                     
-                    # 生成CSV - 使用 UTF-8-BOM 编码确保Excel正确显示中文
-                    # 先用 utf-8-sig 生成带BOM的CSV
-                    csv_buffer = io.StringIO()
-                    df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                    csv_data = csv_buffer.getvalue()
+                    # 生成CSV - 使用utf-8生成（不带BOM，后面手动添加）
+                    csv_content = df.to_csv(index=False, encoding='utf-8')
                     
                     # 生成下载按钮
                     output_filename = f"{Path(uploaded_file.name).stem}_result_data.csv"
@@ -146,15 +158,8 @@ if uploaded_file:
                         st.write(f"- JSON解析失败: {error_count} 行")
                         st.write(f"- 总列数: {len(df.columns)}")
                     
-                    # 下载按钮 - 确保Excel正确识别UTF-8编码的中文
-                    st.download_button(
-                        label="⬇️ 下载 CSV 文件",
-                        data=csv_data,
-                        file_name=output_filename,
-                        mime="text/csv",
-                        type="primary",
-                        use_container_width=True
-                    )
+                    # 使用自定义HTML下载链接（确保中文正确）
+                    st.markdown(get_csv_download_link(csv_content, output_filename), unsafe_allow_html=True)
                     
                     # 预览数据
                     with st.expander("👁️ 数据预览 (前10行)"):
@@ -177,13 +182,12 @@ with st.expander("📖 使用说明"):
     ### 使用步骤：
     1. 点击上方「选择文件」按钮，或拖拽Excel文件到上传区域
     2. 点击「开始转换」按钮
-    3. 转换完成后，点击「下载CSV文件」保存结果
+    3. 点击「下载CSV文件」按钮保存结果
     
     ### 功能说明：
     - 自动读取Excel文件的G列（RESULT_DATA）
     - 保留A~D列和F列作为前缀字段
     - 将JSON数据展开为平铺的CSV格式
-    - 自动打开生成的CSV文件（Windows系统）
     """)
 
 # 页脚
