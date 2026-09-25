@@ -150,6 +150,13 @@ if uploaded_file:
                     # 生成下载按钮
                     output_filename = f"{Path(uploaded_file.name).stem}_result_data.csv"
                     
+                    # 先删除上传的源文件（数据保密）
+                    try:
+                        if temp_path.exists():
+                            temp_path.unlink()
+                    except:
+                        pass
+                    
                     st.success(f"🎉 转换成功！共 {len(df)} 行 × {len(df.columns)} 列")
                     
                     # 统计信息
@@ -167,10 +174,13 @@ if uploaded_file:
                         
                 else:
                     st.error("❌ 未找到有效数据")
-                
-                # 清理临时文件
-                if temp_path.exists():
-                    temp_path.unlink()
+                    
+                    # 即使转换失败也删除源文件
+                    try:
+                        if temp_path.exists():
+                            temp_path.unlink()
+                    except:
+                        pass
                     
             except Exception as e:
                 st.error(f"❌ 转换失败: {str(e)}")
