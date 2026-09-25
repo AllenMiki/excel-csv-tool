@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import openpyxl
+import io
 
 # 页面配置
 st.set_page_config(
@@ -128,8 +129,11 @@ if uploaded_file:
                     new_column_order = [col for col in new_column_order if col in df.columns]
                     df = df[new_column_order]
                     
-                    # 生成CSV
-                    csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+                    # 生成CSV - 使用 UTF-8-BOM 编码确保Excel正确显示中文
+                    # 先用 utf-8-sig 生成带BOM的CSV
+                    csv_buffer = io.StringIO()
+                    df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                    csv_data = csv_buffer.getvalue()
                     
                     # 生成下载按钮
                     output_filename = f"{Path(uploaded_file.name).stem}_result_data.csv"
@@ -142,7 +146,7 @@ if uploaded_file:
                         st.write(f"- JSON解析失败: {error_count} 行")
                         st.write(f"- 总列数: {len(df.columns)}")
                     
-                    # 下载按钮
+                    # 下载按钮 - 确保Excel正确识别UTF-8编码的中文
                     st.download_button(
                         label="⬇️ 下载 CSV 文件",
                         data=csv_data,
